@@ -3,6 +3,7 @@ package otmap
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"fmt"
 )
 
@@ -16,6 +17,19 @@ const (
 type Node struct {
 	data  *bytes.Buffer
 	child []Node
+}
+
+// ReadString reads a string from the buffer
+func (n *Node) ReadString() (string, error) {
+	var length uint16
+	if err := binary.Read(n.data, binary.LittleEndian, &length); err != nil {
+		return "", err
+	}
+	result := make([]byte, length)
+	if err := binary.Read(n.data, binary.LittleEndian, &result); err != nil {
+		return "", err
+	}
+	return string(result), nil
 }
 
 // Parse parses and creates a new node
