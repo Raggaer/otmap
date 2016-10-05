@@ -160,6 +160,20 @@ func Parse(filepath string, cfg Config) (*Map, error) {
 						return nil, fmt.Errorf("Unkown tile attribute. got %v", attr)
 					}
 				}
+				for _, itemNode := range tileNode.child {
+					var nodeType uint8
+					if err := binary.Read(itemNode.data, binary.LittleEndian, &nodeType); err != nil {
+						return nil, err
+					}
+					if nodeType != OTBMNodeItem {
+						return nil, fmt.Errorf("Wrong node type. expected %v got %v", OTBMNodeItem, nodeType)
+					}
+					item := Item{}
+					if err := item.parse(itemNode); err != nil {
+						return nil, err
+					}
+					tile.Items = append(tile.Items, item)
+				}
 			}
 		}
 	}
