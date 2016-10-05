@@ -19,6 +19,19 @@ type Node struct {
 	child []Node
 }
 
+// ReadPosition reads the current buffer map position
+func (n *Node) ReadPosition() (Position, error) {
+	pos := Position{}
+	if err := binary.Read(n.data, binary.LittleEndian, &pos.X); err != nil {
+		return pos, err
+	} else if err = binary.Read(n.data, binary.LittleEndian, &pos.Y); err != nil {
+		return pos, err
+	} else if err = binary.Read(n.data, binary.LittleEndian, &pos.Z); err != nil {
+		return pos, err
+	}
+	return pos, nil
+}
+
 // ReadString reads a string from the buffer
 func (n *Node) ReadString() (string, error) {
 	var length uint16
