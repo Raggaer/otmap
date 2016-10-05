@@ -21,6 +21,7 @@ type Map struct {
 	SpawnFile         string
 	HouseFile         string
 	Towns             []Town
+	Tiles             []Tile
 	Houses            []*House
 }
 
@@ -174,6 +175,7 @@ func Parse(filepath string, cfg Config) (*Map, error) {
 					}
 					tile.Items = append(tile.Items, item)
 				}
+				currentMap.Tiles = append(currentMap.Tiles, tile)
 			}
 		}
 	}
