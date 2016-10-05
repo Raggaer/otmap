@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"os"
 )
 
@@ -22,6 +21,20 @@ type Map struct {
 	SpawnFile         string
 	HouseFile         string
 	Towns             []Town
+	Houses            []*House
+}
+
+func (m *Map) getHouse(id uint32) *House {
+	for _, house := range m.Houses {
+		if house.ID == id {
+			return house
+		}
+	}
+	return nil
+}
+
+func (m *Map) addHouse(house *House) {
+	m.Houses = append(m.Houses, house)
 }
 
 // Parse parses the given .otbm file
@@ -99,23 +112,53 @@ func Parse(filepath string, cfg Config) (*Map, error) {
 			return nil, err
 		}
 		if nodeType == OTBMNodeTowns && cfg.Towns {
-			towns, err := parseTowns(node)
-			if err != nil {
+			if err := currentMap.parseTowns(node); err != nil {
 				return nil, err
 			}
-			currentMap.Towns = towns
 		} else if nodeType == OTBMNodeTileArea {
 			basePosition := Position{}
 			if err := binary.Read(node.data, binary.LittleEndian, &basePosition); err != nil {
 				return nil, err
 			}
-			for _, tile := range node.child {
+			for _, tileNode := range node.child {
 				var nodeType uint8
-				if err := binary.Read(tile.data, binary.LittleEndian, &nodeType); err != nil {
+				if err := binary.Read(tileNode.data, binary.LittleEndian, &nodeType); err != nil {
 					return nil, err
 				}
-				if nodeType == OTBMNodeHouseTile && cfg.Houses {
-					log.Println(parseHouseTile(tile))
+				tile := Tile{}
+				var x, y uint8
+				if err := binary.Read(tileNode.data, binary.LittleEndian, &x); err != nil {
+					return nil, err
+				} else if err = binary.Read(tileNode.data, binary.LittleEndian, &y); err != nil {
+					return nil, err
+				}
+				tile.Position.X = uint16(x) + basePosition.X
+				tile.Position.Y = uint16(y) + basePosition.Y
+				tile.Position.Z = basePosition.Z
+				if nodeType == OTBMNodeHouseTile {
+					if err := currentMap.parseHouseTile(basePosition, tileNode, tile); err != nil {
+						return nil, err
+					}
+				}
+				for i := 0; i < tileNode.data.Len(); i++ {
+					var attr uint8
+					if err := binary.Read(tileNode.data, binary.LittleEndian, &attr); err != nil {
+						return nil, err
+					}
+					switch attr {
+					case OTBMAttrItem:
+						item := Item{}
+						if err := binary.Read(tileNode.data, binary.LittleEndian, &item.ID); err != nil {
+							return nil, err
+						}
+						tile.Items = append(tile.Items, item)
+					case OTBMAttrTileFlags:
+						if err := binary.Read(tileNode.data, binary.LittleEndian, &tile.flags); err != nil {
+							return nil, err
+						}
+					default:
+						return nil, fmt.Errorf("Unkown tile attribute. got %v", attr)
+					}
 				}
 			}
 		}
@@ -123,44 +166,42 @@ func Parse(filepath string, cfg Config) (*Map, error) {
 	return currentMap, nil
 }
 
-func parseHouseTile(node Node) error {
-
-	/*basePosition := Position{}
-	if err := binary.Read(node.data, binary.LittleEndian, &basePosition); err != nil {
+func (m *Map) parseHouseTile(base Position, node Node, tile Tile) error {
+	var id uint32
+	if err := binary.Read(node.data, binary.LittleEndian, &id); err != nil {
 		return err
 	}
-	for _, tile := range node.child {
-		var nodeType uint8
-		if err := binary.Read(tile.data, binary.LittleEndian, &nodeType); err != nil {
-			return err
-		}
-		if nodeType != OTBMNodeTile && nodeType != OTBMNodeHouseTile {
-			return fmt.Errorf("Unkown tile type. expected %v got %v", []int{OTBMNodeHouseTile, OTBMNodeTile}, nodeType)
-		}
-	}*/
-
+	currentHouse := &House{
+		ID: id,
+	}
+	if house := m.getHouse(id); house != nil {
+		currentHouse = house
+	} else {
+		m.addHouse(currentHouse)
+	}
+	currentHouse.Tiles = append(currentHouse.Tiles, tile)
 	return nil
 }
 
-func parseTowns(node Node) ([]Town, error) {
+func (m *Map) parseTowns(node Node) error {
 	towns := []Town{}
 	for _, town := range node.child {
 		var nodeType uint8
 		if err := binary.Read(town.data, binary.LittleEndian, &nodeType); err != nil {
-			return nil, err
+			return err
 		}
 		if nodeType != OTBMNodeTown {
-			return nil, fmt.Errorf("Parsing map towns: expected %v got %v", OTBMNodeTown, nodeType)
+			return fmt.Errorf("Parsing map towns: expected %v got %v", OTBMNodeTown, nodeType)
 		}
 		currentTown := Town{}
 		if err := binary.Read(town.data, binary.LittleEndian, &currentTown.ID); err != nil {
-			return nil, err
+			return err
 		} else if currentTown.Name, err = town.ReadString(); err != nil {
-			return nil, err
+			return err
 		} else if currentTown.TemplePosition, err = town.ReadPosition(); err != nil {
-			return nil, err
+			return err
 		}
-		towns = append(towns, currentTown)
+		m.Towns = append(towns, currentTown)
 	}
-	return towns, nil
+	return nil
 }
