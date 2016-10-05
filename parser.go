@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"log"
 	"os"
 )
 
@@ -92,12 +93,23 @@ func Parse(filepath string) (*Map, error) {
 			return nil, fmt.Errorf("Unkown attribute. expected %v got %v", []int{OTBMAttrDescription, OTBMAttrHouseFile, OTBMAttrSpawnFile}, attribute)
 		}
 	}
+	for _, node := range mapData.child {
+		var nodeType uint8
+		if err := binary.Read(node.data, binary.LittleEndian, &nodeType); err != nil {
+			return nil, err
+		}
+		if nodeType == OTBMNodeTowns {
+			log.Println(parseTowns(node))
+		}
+	}
 	return currentMap, nil
 }
 
 // ParseHouses parses map houses
 func (m *Map) ParseHouses() error {
-	mapData := m.Root.child[0]
+	mapData := Node{}
+	mapData.child = make([]Node, len(m.Root.child[0].child))
+	copy(mapData.child, m.Root.child[0].child)
 	for _, node := range mapData.child {
 		var nodeType uint8
 		if err := binary.Read(node.data, binary.LittleEndian, &nodeType); err != nil {
@@ -123,36 +135,25 @@ func (m *Map) ParseHouses() error {
 	return nil
 }
 
-// ParseTowns parses map towns
-func (m *Map) ParseTowns() error {
-	mapData := m.Root.child[0]
-	for _, node := range mapData.child {
+func parseTowns(node Node) ([]Town, error) {
+	towns := []Town{}
+	for _, town := range node.child {
 		var nodeType uint8
-		if err := binary.Read(node.data, binary.LittleEndian, &nodeType); err != nil {
-			return err
+		if err := binary.Read(town.data, binary.LittleEndian, &nodeType); err != nil {
+			return nil, err
 		}
-		if nodeType != OTBMNodeTowns {
-			continue
+		if nodeType != OTBMNodeTown {
+			return nil, fmt.Errorf("Parsing map towns: expected %v got %v", OTBMNodeTown, nodeType)
 		}
-		for _, town := range node.child {
-			var nodeType uint8
-			if err := binary.Read(town.data, binary.LittleEndian, &nodeType); err != nil {
-				return err
-			}
-			if nodeType != OTBMNodeTown {
-				return fmt.Errorf("Parsing map towns: expected %v got %v", OTBMNodeTown, nodeType)
-			}
-			currentTown := Town{}
-			if err := binary.Read(town.data, binary.LittleEndian, &currentTown.ID); err != nil {
-				return err
-			} else if currentTown.Name, err = town.ReadString(); err != nil {
-				return err
-			} else if currentTown.TemplePosition, err = town.ReadPosition(); err != nil {
-				return err
-			}
-			m.Towns = append(m.Towns, currentTown)
+		currentTown := Town{}
+		if err := binary.Read(town.data, binary.LittleEndian, &currentTown.ID); err != nil {
+			return nil, err
+		} else if currentTown.Name, err = town.ReadString(); err != nil {
+			return nil, err
+		} else if currentTown.TemplePosition, err = town.ReadPosition(); err != nil {
+			return nil, err
 		}
-
+		towns = append(towns, currentTown)
 	}
-	return nil
+	return towns, nil
 }
