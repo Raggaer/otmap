@@ -10,6 +10,7 @@ import (
 
 // Map struct used to save all map information
 type Map struct {
+	Root              Node
 	Width             uint16
 	Height            uint16
 	Header            uint32
@@ -23,7 +24,7 @@ type Map struct {
 }
 
 // Parse parses the given .otbm file
-func Parse(filepath string, options Config) (*Map, error) {
+func Parse(filepath string) (*Map, error) {
 	currentMap := &Map{}
 	file, err := os.Open(filepath)
 	if err != nil {
@@ -38,32 +39,32 @@ func Parse(filepath string, options Config) (*Map, error) {
 	if !bytes.Equal(identifier[:4], []byte{'\x00', '\x00', '\x00', '\x00'}) && !bytes.Equal(identifier[:4], []byte{'O', 'T', 'B', 'M'}) {
 		return nil, fmt.Errorf("Unsupported file identifier: %v", identifier)
 	}
-	root := Node{}
-	if err := root.Parse(reader); err != nil {
+	currentMap.Root = Node{}
+	if err := currentMap.Root.Parse(reader); err != nil {
 		return nil, err
 	}
-	if err := binary.Read(root.data, binary.LittleEndian, &currentMap.Property); err != nil {
+	if err := binary.Read(currentMap.Root.data, binary.LittleEndian, &currentMap.Property); err != nil {
 		return nil, err
 	}
 	if currentMap.Property != 0 {
 		return nil, fmt.Errorf("Unable to read OTBM root property. got %v exptected %v", currentMap.Property, 0)
 	}
-	if err := binary.Read(root.data, binary.LittleEndian, &currentMap.Header); err != nil {
+	if err := binary.Read(currentMap.Root.data, binary.LittleEndian, &currentMap.Header); err != nil {
 		return nil, err
 	}
 	if currentMap.Header > 3 {
 		return nil, fmt.Errorf("Unsupported OTBM version. got %v expected %v", currentMap.Header, "> 3")
 	}
-	if err := binary.Read(root.data, binary.LittleEndian, &currentMap.Width); err != nil {
+	if err := binary.Read(currentMap.Root.data, binary.LittleEndian, &currentMap.Width); err != nil {
 		return nil, err
-	} else if err = binary.Read(root.data, binary.LittleEndian, &currentMap.Height); err != nil {
+	} else if err = binary.Read(currentMap.Root.data, binary.LittleEndian, &currentMap.Height); err != nil {
 		return nil, err
-	} else if err = binary.Read(root.data, binary.LittleEndian, &currentMap.MajorItemsVersion); err != nil {
+	} else if err = binary.Read(currentMap.Root.data, binary.LittleEndian, &currentMap.MajorItemsVersion); err != nil {
 		return nil, err
-	} else if err = binary.Read(root.data, binary.LittleEndian, &currentMap.MinorItemsVersion); err != nil {
+	} else if err = binary.Read(currentMap.Root.data, binary.LittleEndian, &currentMap.MinorItemsVersion); err != nil {
 		return nil, err
 	}
-	mapData := root.child[0]
+	mapData := currentMap.Root.child[0]
 	var nodeType uint8
 	if err = binary.Read(mapData.data, binary.LittleEndian, &nodeType); err != nil {
 		return nil, err
@@ -91,38 +92,67 @@ func Parse(filepath string, options Config) (*Map, error) {
 			return nil, fmt.Errorf("Unkown attribute. expected %v got %v", []int{OTBMAttrDescription, OTBMAttrHouseFile, OTBMAttrSpawnFile}, attribute)
 		}
 	}
-	if err := currentMap.parse(mapData); err != nil {
-		return nil, err
-	}
 	return currentMap, nil
 }
 
-func (m *Map) parse(mapData Node) error {
+// ParseHouses parses map houses
+func (m *Map) ParseHouses() error {
+	mapData := m.Root.child[0]
 	for _, node := range mapData.child {
 		var nodeType uint8
 		if err := binary.Read(node.data, binary.LittleEndian, &nodeType); err != nil {
 			return err
 		}
-		if nodeType == OTBMNodeTowns {
-			for _, town := range node.child {
-				var nodeType uint8
-				if err := binary.Read(town.data, binary.LittleEndian, &nodeType); err != nil {
-					return err
-				}
-				if nodeType != OTBMNodeTown {
-					return fmt.Errorf("Parsing map towns: expected %v got %v", OTBMNodeTown, nodeType)
-				}
-				currentTown := Town{}
-				if err := binary.Read(town.data, binary.LittleEndian, &currentTown.ID); err != nil {
-					return err
-				} else if currentTown.Name, err = town.ReadString(); err != nil {
-					return err
-				} else if currentTown.TemplePosition, err = town.ReadPosition(); err != nil {
-					return err
-				}
-				m.Towns = append(m.Towns, currentTown)
+		if nodeType != OTBMNodeTileArea {
+			continue
+		}
+		basePosition := Position{}
+		if err := binary.Read(node.data, binary.LittleEndian, &basePosition); err != nil {
+			return err
+		}
+		for _, tile := range node.child {
+			var nodeType uint8
+			if err := binary.Read(tile.data, binary.LittleEndian, &nodeType); err != nil {
+				return err
+			}
+			if nodeType != OTBMNodeTile && nodeType != OTBMNodeHouseTile {
+				return fmt.Errorf("Unkown tile type. expected %v got %v", []int{OTBMNodeHouseTile, OTBMNodeTile}, nodeType)
 			}
 		}
+	}
+	return nil
+}
+
+// ParseTowns parses map towns
+func (m *Map) ParseTowns() error {
+	mapData := m.Root.child[0]
+	for _, node := range mapData.child {
+		var nodeType uint8
+		if err := binary.Read(node.data, binary.LittleEndian, &nodeType); err != nil {
+			return err
+		}
+		if nodeType != OTBMNodeTowns {
+			continue
+		}
+		for _, town := range node.child {
+			var nodeType uint8
+			if err := binary.Read(town.data, binary.LittleEndian, &nodeType); err != nil {
+				return err
+			}
+			if nodeType != OTBMNodeTown {
+				return fmt.Errorf("Parsing map towns: expected %v got %v", OTBMNodeTown, nodeType)
+			}
+			currentTown := Town{}
+			if err := binary.Read(town.data, binary.LittleEndian, &currentTown.ID); err != nil {
+				return err
+			} else if currentTown.Name, err = town.ReadString(); err != nil {
+				return err
+			} else if currentTown.TemplePosition, err = town.ReadPosition(); err != nil {
+				return err
+			}
+			m.Towns = append(m.Towns, currentTown)
+		}
+
 	}
 	return nil
 }

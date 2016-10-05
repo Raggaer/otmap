@@ -1,13 +1,16 @@
 package otmap
 
-import "testing"
+import (
+	"log"
+	"testing"
+)
 
 func TestParser(t *testing.T) {
-	if _, err := Parse("C:/Users/ragga/Desktop/test.otbm", Config{
-		Normal: true,
-		Houses: true,
-		Items:  true,
-	}); err != nil {
+	if m, err := Parse("C:/Users/ragga/Desktop/test.otbm"); err != nil {
 		t.Error(err)
+	} else {
+		m.ParseTowns()
+		log.Println(m.Towns)
+		m.ParseHouses()
 	}
 }
