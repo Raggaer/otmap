@@ -25,7 +25,7 @@ type Map struct {
 }
 
 // Parse parses the given .otbm file
-func Parse(filepath string) (*Map, error) {
+func Parse(filepath string, cfg Config) (*Map, error) {
 	currentMap := &Map{}
 	file, err := os.Open(filepath)
 	if err != nil {
@@ -98,40 +98,47 @@ func Parse(filepath string) (*Map, error) {
 		if err := binary.Read(node.data, binary.LittleEndian, &nodeType); err != nil {
 			return nil, err
 		}
-		if nodeType == OTBMNodeTowns {
-			log.Println(parseTowns(node))
+		if nodeType == OTBMNodeTowns && cfg.Towns {
+			towns, err := parseTowns(node)
+			if err != nil {
+				return nil, err
+			}
+			currentMap.Towns = towns
+		} else if nodeType == OTBMNodeTileArea {
+			basePosition := Position{}
+			if err := binary.Read(node.data, binary.LittleEndian, &basePosition); err != nil {
+				return nil, err
+			}
+			for _, tile := range node.child {
+				var nodeType uint8
+				if err := binary.Read(tile.data, binary.LittleEndian, &nodeType); err != nil {
+					return nil, err
+				}
+				if nodeType == OTBMNodeHouseTile && cfg.Houses {
+					log.Println(parseHouseTile(tile))
+				}
+			}
 		}
 	}
 	return currentMap, nil
 }
 
-// ParseHouses parses map houses
-func (m *Map) ParseHouses() error {
-	mapData := Node{}
-	mapData.child = make([]Node, len(m.Root.child[0].child))
-	copy(mapData.child, m.Root.child[0].child)
-	for _, node := range mapData.child {
-		var nodeType uint8
-		if err := binary.Read(node.data, binary.LittleEndian, &nodeType); err != nil {
-			return err
-		}
-		if nodeType != OTBMNodeTileArea {
-			continue
-		}
-		basePosition := Position{}
-		if err := binary.Read(node.data, binary.LittleEndian, &basePosition); err != nil {
-			return err
-		}
-		for _, tile := range node.child {
-			var nodeType uint8
-			if err := binary.Read(tile.data, binary.LittleEndian, &nodeType); err != nil {
-				return err
-			}
-			if nodeType != OTBMNodeTile && nodeType != OTBMNodeHouseTile {
-				return fmt.Errorf("Unkown tile type. expected %v got %v", []int{OTBMNodeHouseTile, OTBMNodeTile}, nodeType)
-			}
-		}
+func parseHouseTile(node Node) error {
+
+	/*basePosition := Position{}
+	if err := binary.Read(node.data, binary.LittleEndian, &basePosition); err != nil {
+		return err
 	}
+	for _, tile := range node.child {
+		var nodeType uint8
+		if err := binary.Read(tile.data, binary.LittleEndian, &nodeType); err != nil {
+			return err
+		}
+		if nodeType != OTBMNodeTile && nodeType != OTBMNodeHouseTile {
+			return fmt.Errorf("Unkown tile type. expected %v got %v", []int{OTBMNodeHouseTile, OTBMNodeTile}, nodeType)
+		}
+	}*/
+
 	return nil
 }
 
