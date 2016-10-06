@@ -13,6 +13,7 @@ type House struct {
 	Tiles []Tile
 }
 
+// HasLevel checks if the slice contains l
 func HasLevel(levels []uint8, l uint8) bool {
 	for _, level := range levels {
 		if level == l {
