@@ -39,7 +39,7 @@ func (m *Map) addHouse(house *House) {
 }
 
 // Parse parses the given .otbm file
-func Parse(filepath string, cfg Config) (*Map, error) {
+func Parse(filepath string) (*Map, error) {
 	currentMap := &Map{}
 	file, err := os.Open(filepath)
 	if err != nil {
@@ -112,7 +112,7 @@ func Parse(filepath string, cfg Config) (*Map, error) {
 		if err := binary.Read(node.data, binary.LittleEndian, &nodeType); err != nil {
 			return nil, err
 		}
-		if nodeType == OTBMNodeTowns && cfg.Towns {
+		if nodeType == OTBMNodeTowns {
 			if err := currentMap.parseTowns(node); err != nil {
 				return nil, err
 			}
