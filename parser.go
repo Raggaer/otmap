@@ -200,7 +200,6 @@ func (m *Map) parseHouseTile(base Position, node Node, tile Tile) error {
 }
 
 func (m *Map) parseTowns(node Node) error {
-	towns := []Town{}
 	for _, town := range node.child {
 		var nodeType uint8
 		if err := binary.Read(town.data, binary.LittleEndian, &nodeType); err != nil {
@@ -217,7 +216,7 @@ func (m *Map) parseTowns(node Node) error {
 		} else if currentTown.TemplePosition, err = town.ReadPosition(); err != nil {
 			return err
 		}
-		m.Towns = append(towns, currentTown)
+		m.Towns = append(m.Towns, currentTown)
 	}
 	return nil
 }
