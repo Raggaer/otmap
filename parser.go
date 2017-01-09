@@ -38,7 +38,7 @@ func (m *Map) addHouse(house *House) {
 	m.Houses = append(m.Houses, house)
 }
 
-// Parse parses the given .otbm file
+// Parse parses the given OTBM file
 func Parse(filepath string) (*Map, error) {
 	currentMap := &Map{}
 	file, err := os.Open(filepath)

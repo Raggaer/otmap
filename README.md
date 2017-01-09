@@ -1,3 +1,15 @@
 # otmap
 
-Parses and interacts with your OTBM map
+Parses OTBM files. Getting detailed information such as:
+
+- Towns
+- Houses
+- Tiles
+
+# Documentation
+
+Check `otmap_test.go` for examples on how to use otmap
+
+# License
+
+goimage is made available under the MIT license
