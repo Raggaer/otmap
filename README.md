@@ -12,4 +12,4 @@ Check `otmap_test.go` for examples on how to use otmap
 
 # License
 
-goimage is made available under the MIT license
+otmap is made available under the MIT license
