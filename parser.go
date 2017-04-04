@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"log"
 )
 
 // Map struct used to save all map information
@@ -39,7 +40,7 @@ func (m *Map) addHouse(house *House) {
 }
 
 // Parse parses the given OTBM file
-func Parse(filepath string) (*Map, error) {
+func Parse(filepath string, townsOnly bool) (*Map, error) {
 	currentMap := &Map{}
 	file, err := os.Open(filepath)
 	if err != nil {
@@ -116,7 +117,11 @@ func Parse(filepath string) (*Map, error) {
 			if err := currentMap.parseTowns(node); err != nil {
 				return nil, err
 			}
-		} else if nodeType == OTBMNodeTileArea {
+			if townsOnly {
+				return currentMap, nil
+			}
+		} else if nodeType == OTBMNodeTileArea && !townsOnly {
+			log.Println("called")
 			basePosition := Position{}
 			if err := binary.Read(node.data, binary.LittleEndian, &basePosition); err != nil {
 				return nil, err
